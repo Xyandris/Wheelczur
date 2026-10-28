@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "canine-limb-cli"
+version = "1.0.0"
+description = "Track canine limbs with animal RTMPose and export CSV and skeleton video."
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+dependencies = ["numpy>=1.26,<3", "opencv-python-headless==4.11.0.86"]
+
+[project.optional-dependencies]
+cuda = ["onnxruntime-gpu[cuda,cudnn]==1.23.2"]
+cpu = []
+test = ["pytest>=8,<9", "build>=1.2,<2"]
+
+[project.scripts]
+canine-limb = "canine_limb.cli:main"
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.packages.find]
+include = ["canine_limb*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+canine_limb = [
+    "models/rtmpose_ap10k.onnx", "models/yolox_tiny.onnx",
+    "models/deploy.json", "models/detail.json", "models/pipeline.json",
+    "models/MMPose-LICENSE.txt", "models/YOLOX-LICENSE.txt", "models/README.md",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["cuda: requires an NVIDIA GPU and the CUDA runtime (opt in with CANINE_TEST_CUDA=1)"]
