@@ -8,3 +8,4 @@ dist/
 *_tracking/
 /canine_limb/models/yolox_tiny.onnx
 /canine_limb/models/rtmpose_ap10k.onnx
+.idea/
