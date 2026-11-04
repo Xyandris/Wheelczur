@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pobierz oba modele ONNX Wheelczur do canine_limb/models (bez pip)."""
+"""Download and verify Wheelczur models; optionally use truststore for native TLS."""
 
 import argparse
 from dataclasses import dataclass
@@ -8,10 +8,14 @@ from http.client import HTTPException
 import os
 from pathlib import Path, PurePosixPath
 import shutil
+import shlex
+import ssl
+import subprocess
 import sys
 import tempfile
 import time
 from urllib.request import Request, urlopen
+from urllib.error import URLError
 from zipfile import BadZipFile, ZipFile
 
 
@@ -54,6 +58,36 @@ class DownloadError(RuntimeError):
     """Błąd pobierania lub weryfikacji modelu."""
 
 
+class CertificateDownloadError(DownloadError):
+    """Certificate verification failed; repeating the request will not repair trust."""
+
+
+def download_context():
+    """Use native certificate-chain verification when truststore is installed."""
+    try:
+        import truststore
+    except ImportError:
+        return ssl.create_default_context(), False
+    return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT), True
+
+
+def certificate_error(exc, native):
+    if native:
+        return CertificateDownloadError(
+            "TLS certificate verification failed using the native system trust store. "
+            "Check the system clock and trusted certificates, including certificates "
+            "required by your network or antivirus. "
+            f"Details: {exc}"
+        )
+    arguments = [sys.executable, "-m", "pip", "install", "--upgrade", "truststore"]
+    command = subprocess.list2cmdline(arguments) if os.name == "nt" else shlex.join(arguments)
+    return CertificateDownloadError(
+        "TLS certificate verification failed. Run this with the same Python: "
+        f"{command} . Then retry the model download; it will use native system "
+        f"certificate verification. Details: {exc}"
+    )
+
+
 def sha256(path):
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -67,8 +101,17 @@ def valid_model(path, model):
 
 
 def download(url, destination):
+    context, native = download_context()
     request = Request(url, headers={"User-Agent": "Wheelczur-model-downloader/1.0"})
-    with urlopen(request, timeout=30) as response, destination.open("wb") as output:
+    try:
+        response = urlopen(request, timeout=30, context=context)
+    except ssl.SSLCertVerificationError as exc:
+        raise certificate_error(exc, native) from exc
+    except URLError as exc:
+        if isinstance(exc.reason, ssl.SSLCertVerificationError):
+            raise certificate_error(exc.reason, native) from exc
+        raise
+    with response, destination.open("wb") as output:
         total = int(response.headers.get("Content-Length") or 0)
         done = 0
         last_report = -1
@@ -121,6 +164,9 @@ def install_model(model, directory):
                 os.replace(candidate, target)
             print(f"Gotowe: {target}", flush=True)
             return target
+        except CertificateDownloadError:
+            # Trust failures need a certificate fix, not repeated downloads.
+            raise
         except (OSError, HTTPException, BadZipFile, ValueError, DownloadError) as exc:
             if attempt == ATTEMPTS:
                 raise DownloadError(
