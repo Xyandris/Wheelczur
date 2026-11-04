@@ -27,4 +27,4 @@ https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_t
 - Dog confidence: objectness × dog-class score, threshold 0.30; class-specific suppression IoU 0.45.
 - License/provenance: official [YOLOX project](https://github.com/Megvii-BaseDetection/YOLOX), Apache 2.0; upstream license saved as `YOLOX-LICENSE.txt`.
 
-This detector supplies current-frame whole-dog boxes, not anatomical keypoints. The AP-10K pose model remains responsible for landmarks. Both use the requested verified CUDA device by default. Explicit `--device cpu` uses OpenCV DNN. The `--bbox X Y WIDTH HEIGHT` mode skips the detector and uses a fixed whole-dog crop. See the root README for CLI usage.
+This detector supplies current-frame whole-dog boxes, not anatomical keypoints. The AP-10K pose model remains responsible for landmarks. Both use OpenCV DNN on the CPU by default. Explicit `--device cuda:N` selects a verified NVIDIA CUDA device. The `--bbox X Y WIDTH HEIGHT` mode skips the detector and uses a fixed whole-dog crop. See the root README for CLI usage.

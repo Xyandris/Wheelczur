@@ -33,12 +33,12 @@ def finite_number(value):
 def parser():
     p = argparse.ArgumentParser(
         description="Track a dog's selected limb with RTMPose and save CSV + skeleton video.",
-        epilog='Example: python track_limb.py "walk.mp4" --limb left-hind --device cuda:0',
+        epilog='Example: python track_limb.py "walk.mp4" --limb left-hind',
     )
     p.add_argument("video", nargs="?", help="Input video path; prompts when omitted.")
     p.add_argument("--limb", type=lambda s: s.replace("_", "-"), choices=(*LIMBS, "all"),
                    help="Animal's left/right side; prompts when omitted.")
-    p.add_argument("--device", type=device_argument, default="cuda:0", help="cuda:N (default cuda:0), or explicit cpu.")
+    p.add_argument("--device", type=device_argument, default="cpu", help="cpu (default), or cuda:N for an NVIDIA GPU.")
     p.add_argument("--output-dir", type=Path, help="Default: <video_folder>/<video_stem>_tracking/.")
     p.add_argument("--confidence", type=finite_number, default=0.3, help="Minimum raw SimCC score (default 0.3).")
     p.add_argument("--detector-confidence", type=finite_number, default=0.3, help="Minimum dog detection probability (default 0.3).")
@@ -49,7 +49,7 @@ def parser():
     p.add_argument("--video-format", choices=("mp4", "avi"), default="mp4", help="mp4=mp4v (default), avi=MJPEG.")
     p.add_argument("--models-dir", type=Path, help="Directory containing the unchanged supplied ONNX models.")
     p.add_argument("--overwrite", action="store_true", help="Replace existing outputs after processing succeeds.")
-    p.add_argument("--check-cuda", action="store_true", help="Run both models and verify actual CUDA compute, then exit.")
+    p.add_argument("--check-cuda", action="store_true", help="Run both models and verify actual CUDA compute; requires --device cuda:N.")
     p.add_argument("--version", action="version", version=__version__)
     return p
 

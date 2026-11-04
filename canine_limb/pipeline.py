@@ -27,7 +27,7 @@ class Config:
     video: Path
     limb: str
     output_dir: Path | None = None
-    device: str = "cuda:0"
+    device: str = "cpu"
     confidence: float = 0.3
     detector_confidence: float = 0.3
     dog_index: int = 0

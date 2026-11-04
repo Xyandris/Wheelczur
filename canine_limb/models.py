@@ -66,7 +66,7 @@ def box_iou(a, b):
 
 
 class PoseModel:
-    def __init__(self, device="cuda:0", directory=None):
+    def __init__(self, device="cpu", directory=None):
         self.session = ModelSession(
             model_path("rtmpose_ap10k.onnx", directory), (1, 3, 256, 256),
             ((1, 17, 512), (1, 17, 512)), ("simcc_x", "simcc_y"), device,
@@ -80,7 +80,7 @@ class PoseModel:
 
 
 class DogDetector:
-    def __init__(self, device="cuda:0", directory=None, threshold=0.3):
+    def __init__(self, device="cpu", directory=None, threshold=0.3):
         self.session = ModelSession(
             model_path("yolox_tiny.onnx", directory), (1, 3, 416, 416),
             ((1, 3549, 85),), ("output",), device,

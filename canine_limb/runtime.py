@@ -1,4 +1,4 @@
-"""ONNX Runtime CUDA verification and an explicit OpenCV DNN CPU path."""
+"""ONNX Runtime CUDA verification and the default OpenCV DNN CPU path."""
 
 from collections import Counter
 from importlib.metadata import PackageNotFoundError, version
@@ -30,7 +30,7 @@ def cuda_error(reason):
         f"CUDA could not be verified: {reason}. "
         'Use a fresh environment and install with: python -m pip install ".[cuda]". '
         "Check the NVIDIA driver; on Windows also install the Visual C++ x64 runtime. "
-        "Then run: python track_limb.py --check-cuda. See README.md."
+        "Then run: python track_limb.py --check-cuda --device cuda:0. See README.md."
     )
 
 

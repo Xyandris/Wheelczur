@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import subprocess
 import sys
 
@@ -12,27 +13,28 @@ from canine_limb.pipeline import Config, run_video
 from canine_limb.runtime import TrackingError
 
 
-def test_bundled_weights_run_on_cpu():
+def test_bundled_weights_default_to_cpu():
     cap = cv2.VideoCapture(str(Path(__file__).parent / "data/synthetic_walk.mp4"))
     ok, frame = cap.read()
     cap.release()
     assert ok
     height, width = frame.shape[:2]
-    pose = PoseModel("cpu")
+    pose = PoseModel()
     points, scores = pose.predict(frame, (0, 0, width, height))
     assert points.shape == (17, 2) and scores.shape == (17,)
     assert np.isfinite(points).all() and np.isfinite(scores).all()
     assert pose.info["providers"] == ["OpenCV_CPU"]
-    detector = DogDetector("cpu")
+    detector = DogDetector()
     assert isinstance(detector.detect(frame), list)
 
 
 def test_real_models_end_to_end(make_video, tmp_path):
     video = make_video(count=2)
-    automatic = run_video(Config(video, "left-hind", output_dir=tmp_path / "real_auto", device="cpu"))
+    automatic = run_video(Config(video, "left-hind", output_dir=tmp_path / "real_auto"))
     fixed = run_video(Config(video, "right-fore", output_dir=tmp_path / "real_fixed", device="cpu",
                              bbox=(0, 0, 320, 240)))
     assert automatic["frames"] == fixed["frames"] == 2
+    assert automatic["device"] == "cpu"
     assert automatic["detector_runtime"]["providers"] == ["OpenCV_CPU"]
     assert fixed["joint_rows"] == 6 and fixed["detector_runtime"] is None
 
@@ -52,8 +54,10 @@ def test_cli_prompts_and_paths_with_spaces(make_video, fake_models, monkeypatch,
 
 
 def test_cli_noninteractive_alias_and_missing_input(make_video, fake_models, tmp_path, monkeypatch):
-    assert main([str(make_video()), "--limb", "right_hind", "--device", "cpu",
+    assert main([str(make_video()), "--limb", "right_hind",
                  "--output-dir", str(tmp_path / "cli")]) == 0
+    metadata = json.loads(next((tmp_path / "cli").glob("*.json")).read_text())
+    assert metadata["device"] == "cpu"
     def eof(prompt):
         raise EOFError
     monkeypatch.setattr("builtins.input", eof)
