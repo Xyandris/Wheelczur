@@ -46,7 +46,16 @@ def test_missing_rows_and_bounds_never_export_coordinates():
     assert [r["status"] for r in rows] == ["low_confidence", "out_of_frame", "invalid_prediction"]
     assert all(r["x_px"] is None and r["y_px"] is None for r in rows)
     assert rows[0]["score"] == 0.1 and rows[0]["time_s"] == 0.1
-    assert len(frame_rows(0, 20, "all", None, None, 100, 100, 0.3)) == 12
+
+
+@pytest.mark.parametrize("limb", LIMBS)
+def test_missing_rows_contain_only_the_selected_limb(limb):
+    rows = frame_rows(0, 20, limb, None, None, 100, 100, 0.3)
+    assert len(rows) == 3
+    assert {row["limb"] for row in rows} == {limb}
+    assert [row["joint"] for row in rows] == list(LIMBS[limb][1])
+    assert all(row["status"] == "no_dog" and row["x_px"] is None
+               and row["y_px"] is None for row in rows)
 
 
 def test_detector_decodes_dog_class_with_nms():

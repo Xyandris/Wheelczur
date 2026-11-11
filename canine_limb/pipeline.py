@@ -18,7 +18,7 @@ import numpy as np
 from . import __version__
 from .models import DogDetector, MODEL_HASHES, PoseModel
 from .runtime import TrackingError, parse_device
-from .schema import COLORS, CSV_FIELDS, LIMBS, selected_limbs
+from .schema import COLORS, CSV_FIELDS, LIMBS
 from .tracking import DogTracker
 
 
@@ -41,28 +41,27 @@ class Config:
 def frame_rows(frame_index, fps, limb, points, scores, width, height, threshold,
                box=None, dog_score=None, missing_status="no_dog"):
     rows = []
-    for name in selected_limbs(limb):
-        indices, joints = LIMBS[name]
-        for index, joint in zip(indices, joints):
-            x = y = score = None
-            status = missing_status
-            if points is not None:
-                px, py = map(float, points[index])
-                raw_score = float(scores[index])
-                score = raw_score if math.isfinite(raw_score) else None
-                if not all(map(math.isfinite, (px, py, raw_score))):
-                    status = "invalid_prediction"
-                elif raw_score < threshold:
-                    status = "low_confidence"
-                elif not (0 <= px < width and 0 <= py < height):
-                    status = "out_of_frame"
-                else:
-                    x, y, status = px, py, "detected"
-            rows.append(dict(zip(CSV_FIELDS, (
-                frame_index, round(frame_index / fps, 9), name, joint,
-                x, y, score, status, dog_score,
-                *(box if box is not None else (None,) * 4),
-            ))))
+    indices, joints = LIMBS[limb]
+    for index, joint in zip(indices, joints):
+        x = y = score = None
+        status = missing_status
+        if points is not None:
+            px, py = map(float, points[index])
+            raw_score = float(scores[index])
+            score = raw_score if math.isfinite(raw_score) else None
+            if not all(map(math.isfinite, (px, py, raw_score))):
+                status = "invalid_prediction"
+            elif raw_score < threshold:
+                status = "low_confidence"
+            elif not (0 <= px < width and 0 <= py < height):
+                status = "out_of_frame"
+            else:
+                x, y, status = px, py, "detected"
+        rows.append(dict(zip(CSV_FIELDS, (
+            frame_index, round(frame_index / fps, 9), limb, joint,
+            x, y, score, status, dog_score,
+            *(box if box is not None else (None,) * 4),
+        ))))
     return rows
 
 
@@ -75,23 +74,22 @@ def draw_overlay(frame, rows, box, frame_index, fps, limb, target_status):
     if box is not None:
         x1, y1, x2, y2 = (int(round(v)) for v in box)
         cv2.rectangle(result, (x1, y1), (x2, y2), (160, 160, 160), 1)
-    for name in selected_limbs(limb):
-        joints = [row for row in rows if row["limb"] == name]
-        color = COLORS[name]
-        for a, b in zip(joints, joints[1:]):
-            if a["status"] == b["status"] == "detected":
-                cv2.line(result, (round(a["x_px"]), round(a["y_px"])),
-                         (round(b["x_px"]), round(b["y_px"])), color, line_width, cv2.LINE_AA)
-        for joint in joints:
-            if joint["status"] == "detected":
-                xy = round(joint["x_px"]), round(joint["y_px"])
-                cv2.circle(result, xy, radius + 1, (20, 20, 20), -1, cv2.LINE_AA)
-                cv2.circle(result, xy, radius, color, -1, cv2.LINE_AA)
-                label = joint["joint"].replace("_", " ")
-                cv2.putText(result, label, (xy[0] + radius + 3, xy[1] - radius),
-                            cv2.FONT_HERSHEY_SIMPLEX, scale * 0.85, (15, 15, 15), 3, cv2.LINE_AA)
-                cv2.putText(result, label, (xy[0] + radius + 3, xy[1] - radius),
-                            cv2.FONT_HERSHEY_SIMPLEX, scale * 0.85, color, 1, cv2.LINE_AA)
+    joints = [row for row in rows if row["limb"] == limb]
+    color = COLORS[limb]
+    for a, b in zip(joints, joints[1:]):
+        if a["status"] == b["status"] == "detected":
+            cv2.line(result, (round(a["x_px"]), round(a["y_px"])),
+                     (round(b["x_px"]), round(b["y_px"])), color, line_width, cv2.LINE_AA)
+    for joint in joints:
+        if joint["status"] == "detected":
+            xy = round(joint["x_px"]), round(joint["y_px"])
+            cv2.circle(result, xy, radius + 1, (20, 20, 20), -1, cv2.LINE_AA)
+            cv2.circle(result, xy, radius, color, -1, cv2.LINE_AA)
+            label = joint["joint"].replace("_", " ")
+            cv2.putText(result, label, (xy[0] + radius + 3, xy[1] - radius),
+                        cv2.FONT_HERSHEY_SIMPLEX, scale * 0.85, (15, 15, 15), 3, cv2.LINE_AA)
+            cv2.putText(result, label, (xy[0] + radius + 3, xy[1] - radius),
+                        cv2.FONT_HERSHEY_SIMPLEX, scale * 0.85, color, 1, cv2.LINE_AA)
     valid = sum(r["status"] == "detected" for r in rows)
     state = f"{valid}/{len(rows)} joints" if box is not None else target_status.replace("_", " ")
     title = f"RTMPose | {limb} | frame {frame_index} | {frame_index / fps:.2f}s | {state}"
@@ -105,7 +103,7 @@ def draw_overlay(frame, rows, box, frame_index, fps, limb, target_status):
 
 def _validate_config(config):
     parse_device(config.device)
-    if config.limb not in (*LIMBS, "all"):
+    if config.limb not in LIMBS:
         raise TrackingError(f"Unknown limb: {config.limb}.")
     if not math.isfinite(config.confidence) or config.confidence < 0:
         raise TrackingError("Joint confidence threshold must be finite and nonnegative.")

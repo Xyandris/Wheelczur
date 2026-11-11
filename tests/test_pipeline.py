@@ -10,6 +10,7 @@ import pytest
 from canine_limb import pipeline
 from canine_limb.pipeline import Config, draw_overlay, frame_rows, run_video
 from canine_limb.runtime import TrackingError
+from canine_limb.schema import LIMBS
 
 
 def read_rows(result):
@@ -39,12 +40,14 @@ def test_csv_video_and_metadata_match(make_video, fake_models, tmp_path):
     assert count == 4
 
 
-def test_no_stale_coordinates_when_target_disappears(make_video, fake_models, tmp_path):
+@pytest.mark.parametrize("limb", LIMBS)
+def test_no_stale_coordinates_when_target_disappears(make_video, fake_models, tmp_path, limb):
     _, detector = fake_models
     detector.sequence = [[((50, 40, 270, 200), 0.95)], [], [((52, 40, 272, 200), 0.95)], []]
-    result = run_video(Config(make_video(), "all", output_dir=tmp_path / "missing", device="cpu"))
+    result = run_video(Config(make_video(), limb, output_dir=tmp_path / "missing", device="cpu"))
     rows = read_rows(result)
-    assert len(rows) == 48 and result["frames_without_target"] == 2
+    assert len(rows) == 12 and result["frames_without_target"] == 2
+    assert {row["limb"] for row in rows} == {limb}
     missing = [r for r in rows if int(r["frame"]) in {1, 3}]
     assert all(r["status"] == "no_dog" and r["x_px"] == r["y_px"] == r["bbox_x1"] == "" for r in missing)
 
@@ -108,6 +111,12 @@ def test_renderer_draws_only_valid_bones():
     overlay = draw_overlay(image, rows, None, 0, 20, "left-hind", "detected")
     assert not overlay[80, 80].any() and not overlay[120, 120].any()
     assert not image.any()
+
+
+def test_all_limbs_rejected_before_opening_video(tmp_path):
+    with pytest.raises(TrackingError, match="Unknown limb: all"):
+        run_video(Config(tmp_path / "unused.mp4", "all"))
+    assert not list(tmp_path.iterdir())
 
 
 def test_invalid_paths_and_bbox_fail_cleanly(make_video, fake_models, tmp_path):

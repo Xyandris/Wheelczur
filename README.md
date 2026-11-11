@@ -31,6 +31,49 @@ python3 --version
 
 Wersja musi mieścić się w zakresie **3.10–3.13**. W dalszych poleceniach na Linuxie używaj **`python3` zamiast `python`**. Na innych dystrybucjach zainstaluj zgodną wersję Pythona i moduł `venv` przez menedżer pakietów systemu.
 
+### Brak polecenia `pip` lub modułu `pip`
+
+Jeśli terminal zgłasza, że `pip` nie jest rozpoznawany, najpierw sprawdź `python -m pip --version` (na Linuxie: `python3 -m pip --version`). Jeśli to działa, używaj `python -m pip` zamiast samego `pip`.
+
+**Windows — komunikat `No module named pip`:** zamknij menu launchera opcją **0**, a następnie wykonaj w PowerShell:
+
+```powershell
+python -m ensurepip --upgrade
+python -m pip --version
+```
+
+Jeśli polecenie `python` nie działa, ale działa `py`, zastąp `python` przez `py` we wszystkich poleceniach. Jeśli brakuje również modułu `ensurepip`, uruchom ponownie instalator tej samej wersji Pythona 3.10–3.13 z [python.org](https://www.python.org/downloads/windows/), wybierz **Modify** i zaznacz składnik **pip**. Po instalacji otwórz nowe okno terminala i ponownie sprawdź wersję `pip`.
+
+**Linux (Ubuntu / Debian) — brak `pip` lub `ensurepip`:** zainstaluj wymagane pakiety przez menedżer systemowy:
+
+```bash
+sudo apt update
+sudo apt install python3-pip python3-venv
+python3 -m pip --version
+```
+
+Jeśli korzystasz z innej wersji interpretera, np. `python3.12`, doinstaluj odpowiadający jej pakiet `python3.12-venv`.
+
+**Brak `pip` w istniejącym środowisku Wheelczura:** jeśli błąd pochodzi z `.venv-cpu`, przywróć `pip` bezpośrednio w tym środowisku:
+
+Windows (PowerShell):
+
+```powershell
+.\.venv-cpu\Scripts\python.exe -m ensurepip --upgrade
+.\.venv-cpu\Scripts\python.exe -m pip --version
+```
+
+Linux:
+
+```bash
+./.venv-cpu/bin/python -m ensurepip --upgrade
+./.venv-cpu/bin/python -m pip --version
+```
+
+Dla GPU zamień `.venv-cpu` na `.venv-cuda`. Jeśli brakuje `ensurepip`, najpierw napraw instalację Pythona zgodnie z instrukcją dla swojego systemu powyżej. Następnie ponów `python launcher.py --setup cpu` (dla GPU: `--setup cuda`; na Linuxie użyj `python3`).
+
+Opis mechanizmu przywracania `pip`: [dokumentacja Pythona — ensurepip](https://docs.python.org/3.13/library/ensurepip.html).
+
 ## 2. Instalacja programu
 
 Na GitHubie wybierz **Code → Download ZIP** i rozpakuj archiwum. Otwórz terminal w folderze zawierającym `launcher.py` i wykonaj kolejno:
@@ -62,7 +105,7 @@ python launcher.py --run cpu
 ```
 
 1. Podaj ścieżkę do filmu, np. `test-vid/doggi-walk-01.mp4`.
-2. Wybierz kończynę z listy lub `all`, aby śledzić wszystkie. Lewa i prawa strona odnoszą się do stron psa.
+2. Wybierz jedną z czterech kończyn: `left-fore`, `right-fore`, `left-hind` lub `right-hind`. Lewa i prawa strona odnoszą się do stron psa.
 3. Poczekaj na zakończenie analizy.
 
 Wyniki znajdziesz obok filmu, w folderze `<nazwa_filmu_bez_rozszerzenia>_tracking/`:
@@ -91,3 +134,35 @@ python launcher.py --run cuda
 ```
 
 Instalator automatycznie doda `onnxruntime-gpu` z bibliotekami CUDA/cuDNN. Wymagana jest karta NVIDIA z odpowiednim sterownikiem, a w Windows także Visual C++ x64 Runtime.
+
+### Windows: błąd ładowania biblioteki cuDNN
+
+Jeśli karta NVIDIA jest wykrywana, ale test modeli kończy się błędem `Could not locate cudnn_engines_tensor_ir64_9.dll` lub `CUDNN_STATUS_SUBLIBRARY_LOADING_FAILED`, problem dotyczy ładowania podbibliotek cuDNN. Aktualna wersja Wheelczura udostępnia katalogi bibliotek NVIDIA z wybranego środowiska i ładuje dodatkowe biblioteki przed uruchomieniem modelu. Nie trzeba ustawiać systemowej zmiennej `PATH`.
+
+Zamknij launcher opcją **0**, rozpakuj aktualne pliki projektu do swojego folderu Wheelczura, a następnie sprawdź oba modele w PowerShell:
+
+```powershell
+.\.venv-cuda\Scripts\python.exe track_limb.py --check-cuda --device cuda:0
+```
+
+Jeśli test się powiedzie, uruchom analizę:
+
+```powershell
+.\.venv-cuda\Scripts\python.exe launcher.py --run cuda
+```
+
+Jeśli błąd nadal wskazuje brak tego pliku, sprawdź, czy pakiet go zawiera:
+
+```powershell
+Test-Path .\.venv-cuda\Lib\site-packages\nvidia\cudnn\bin\cudnn_engines_tensor_ir64_9.dll
+```
+
+Dla cuDNN **9.28.1.4** z opisanego komunikatu brakujący lub uszkodzony pakiet można przywrócić poleceniem:
+
+```powershell
+.\.venv-cuda\Scripts\python.exe -m pip install --force-reinstall --no-deps "nvidia-cudnn-cu12==9.28.1.4"
+```
+
+Jeśli masz inną wersję, sprawdź ją poleceniem `.\.venv-cuda\Scripts\python.exe -m pip show nvidia-cudnn-cu12` i użyj jej numeru zamiast `9.28.1.4`. Po naprawie ponów test `--check-cuda`. Nie kopiuj pojedynczych bibliotek DLL z innej wersji cuDNN.
+
+Dokumentacja: [ONNX Runtime — ładowanie bibliotek CUDA/cuDNN](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#preload-dlls) oraz [NVIDIA — instalacja cuDNN w Windows](https://docs.nvidia.com/cudnn/installation/backend/windows/).

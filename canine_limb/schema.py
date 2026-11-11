@@ -18,7 +18,3 @@ CSV_FIELDS = [
     "frame", "time_s", "limb", "joint", "x_px", "y_px", "score", "status",
     "dog_score", "bbox_x1", "bbox_y1", "bbox_x2", "bbox_y2",
 ]
-
-
-def selected_limbs(limb):
-    return tuple(LIMBS) if limb == "all" else (limb,)

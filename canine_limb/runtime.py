@@ -1,7 +1,7 @@
 """ONNX Runtime CUDA verification and the default OpenCV DNN CPU path."""
 
 from collections import Counter
-from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import PackageNotFoundError, distribution, version
 from pathlib import Path
 import json
 import os
@@ -59,6 +59,61 @@ def _import_ort(cuda):
     return ort
 
 
+_CUDA_DLL_DIRECTORY_HANDLES = {}
+_CUDA_EXTRA_DLL_HANDLES = {}
+_CUDA_PACKAGES = (
+    "nvidia-cublas-cu12", "nvidia-cuda-runtime-cu12", "nvidia-cuda-nvrtc-cu12",
+    "nvidia-cudnn-cu12", "nvidia-cufft-cu12", "nvidia-curand-cu12", "nvidia-nvjitlink-cu12",
+)
+
+
+def preload_cuda_libraries(ort):
+    """Expose pip-installed NVIDIA DLLs, including newer cuDNN engine libraries."""
+    directories = {}
+    if sys.platform == "win32":
+        for package in _CUDA_PACKAGES:
+            try:
+                installed = distribution(package)
+            except PackageNotFoundError:
+                continue
+            for entry in installed.files or ():
+                if str(entry).lower().endswith(".dll"):
+                    dll = Path(installed.locate_file(entry)).resolve()
+                    if dll.is_file():
+                        directories.setdefault(str(dll.parent), None)
+        # Keep these handles alive: closing one removes its DLL search directory.
+        for directory in directories:
+            if directory not in _CUDA_DLL_DIRECTORY_HANDLES:
+                _CUDA_DLL_DIRECTORY_HANDLES[directory] = os.add_dll_directory(directory)
+        if directories:
+            # cuDNN also loads sub-libraries by name, outside Python's DLL loader.
+            keys = {os.path.normcase(os.path.normpath(path)) for path in directories}
+            previous = [path for path in os.environ.get("PATH", "").split(os.pathsep)
+                        if path and os.path.normcase(os.path.normpath(path)) not in keys]
+            os.environ["PATH"] = os.pathsep.join([*directories, *previous])
+    if hasattr(ort, "preload_dlls"):
+        if directories:
+            ort.preload_dlls(directory="")
+        else:
+            ort.preload_dlls()
+    if directories:
+        import ctypes
+        # ORT 1.23.2 predates these optional cuDNN 9 sub-libraries. Load each
+        # available DLL explicitly so cuDNN can find it during the first Conv.
+        for name in ("cudnn_ext64_9.dll", "cudnn_engines_tensor_ir64_9.dll"):
+            for directory in directories:
+                dll = Path(directory) / name
+                key = str(dll)
+                if dll.is_file() and key not in _CUDA_EXTRA_DLL_HANDLES:
+                    try:
+                        _CUDA_EXTRA_DLL_HANDLES[key] = ctypes.CDLL(key)
+                    except OSError as exc:
+                        raise cuda_error(
+                            f"could not load {name} from {directory}: {exc}. "
+                            "See the Windows cuDNN DLL repair instructions in README.md"
+                        ) from exc
+
+
 def verify_cuda(session, device_id):
     providers = session.get_providers()
     if not providers or providers[0] != "CUDAExecutionProvider":
@@ -109,8 +164,7 @@ class ModelSession:
         ort = _import_ort(self.cuda)
         self.info = {"device": device, "onnxruntime": ort.__version__, "cuda_verified": False}
         try:
-            if self.cuda and hasattr(ort, "preload_dlls"):
-                ort.preload_dlls()
+            preload_cuda_libraries(ort)
             if self.cuda and "CUDAExecutionProvider" not in ort.get_available_providers():
                 raise cuda_error("CUDAExecutionProvider is unavailable")
             with tempfile.TemporaryDirectory(prefix="canine-limb-warmup-") as temp:

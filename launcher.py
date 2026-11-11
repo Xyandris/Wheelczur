@@ -15,7 +15,7 @@ import sys
 ROOT = Path(__file__).resolve().parent
 ENVIRONMENTS = {'cpu': '.venv-cpu', 'cuda': '.venv-cuda'}
 DETAILED = False
-LIMBS = ('left-fore', 'right-fore', 'left-hind', 'right-hind', 'all')
+LIMBS = ('left-fore', 'right-fore', 'left-hind', 'right-hind')
 
 # Run by the chosen venv. These checks do not load or download model files.
 ENV_CHECK = """
@@ -36,10 +36,9 @@ import numpy
 from canine_limb.cli import main
 if sys.argv[1] == 'cuda':
     import ctypes
-    from canine_limb.runtime import _import_ort
+    from canine_limb.runtime import _import_ort, preload_cuda_libraries
     ort = _import_ort(True)
-    if hasattr(ort, 'preload_dlls'):
-        ort.preload_dlls()
+    preload_cuda_libraries(ort)
     if 'CUDAExecutionProvider' not in ort.get_available_providers():
         raise SystemExit('CUDAExecutionProvider is unavailable. Run GPU setup.')
     driver = ctypes.WinDLL('nvcuda.dll') if sys.platform == 'win32' else ctypes.CDLL('libcuda.so.1')
@@ -264,9 +263,9 @@ def prompt_tracking():
         answer = input('Limb number or name: ').strip().lower().replace('_', '-')
         if answer in LIMBS:
             return video, answer
-        if answer in ('1', '2', '3', '4', '5'):
+        if answer in {str(i) for i in range(1, len(LIMBS) + 1)}:
             return video, LIMBS[int(answer) - 1]
-        print('Choose 1–5 or enter a listed limb name.')
+        print('Choose 1–4 or enter a listed limb name.')
 
 
 def run_tracker(device):

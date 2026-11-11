@@ -36,7 +36,7 @@ def parser():
         epilog='Example: python track_limb.py "walk.mp4" --limb left-hind',
     )
     p.add_argument("video", nargs="?", help="Input video path; prompts when omitted.")
-    p.add_argument("--limb", type=lambda s: s.replace("_", "-"), choices=(*LIMBS, "all"),
+    p.add_argument("--limb", type=lambda s: s.replace("_", "-"), choices=tuple(LIMBS),
                    help="Animal's left/right side; prompts when omitted.")
     p.add_argument("--device", type=device_argument, default="cpu", help="cpu (default), or cuda:N for an NVIDIA GPU.")
     p.add_argument("--output-dir", type=Path, help="Default: <video_folder>/<video_stem>_tracking/.")
@@ -55,7 +55,7 @@ def parser():
 
 
 def prompt_limb():
-    options = (*LIMBS, "all")
+    options = tuple(LIMBS)
     print("Choose a limb (left/right refer to the dog's own sides):")
     for i, name in enumerate(options, 1):
         print(f"  {i}. {name}")
@@ -65,7 +65,7 @@ def prompt_limb():
             return answer
         if answer in {str(i) for i in range(1, len(options) + 1)}:
             return options[int(answer) - 1]
-        print("Choose 1-5 or enter a listed limb name.")
+        print("Choose 1-4 or enter a listed limb name.")
 
 
 def input_path(value):
